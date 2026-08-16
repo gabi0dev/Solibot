@@ -3,13 +3,11 @@ import logging
 import os
 
 import azure.functions as func
-from openai import AzureOpenAI
+from openai import OpenAI
 
-
-ENDPOINT = os.environ.get("FOUNDRY_ENDPOINT")         
-API_KEY = os.environ.get("FOUNDRY_KEY")               
-DEPLOYMENT = os.environ.get("FOUNDRY_DEPLOYMENT")      
-API_VERSION = os.environ.get("FOUNDRY_API_VERSION", "2024-10-21")
+ENDPOINT = os.environ.get("FOUNDRY_ENDPOINT")
+API_KEY = os.environ.get("FOUNDRY_KEY")
+DEPLOYMENT = os.environ.get("FOUNDRY_DEPLOYMENT")   
 
 SYSTEM_PROMPT = os.environ.get(
     "FOUNDRY_SYSTEM_PROMPT",
@@ -30,14 +28,13 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
     if not isinstance(user_messages, list) or not user_messages:
         return _json({"error": "Feld 'messages' fehlt oder ist leer."}, 400)
 
-    # System-Prompt vorne dran, danach der Verlauf vom Frontend
+
     messages = [{"role": "system", "content": SYSTEM_PROMPT}] + user_messages
 
     try:
-        client = AzureOpenAI(
-            azure_endpoint=ENDPOINT,
+        client = OpenAI(
+            base_url=ENDPOINT,
             api_key=API_KEY,
-            api_version=API_VERSION,
         )
         completion = client.chat.completions.create(
             model=DEPLOYMENT,
