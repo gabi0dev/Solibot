@@ -5,10 +5,10 @@ import os
 import azure.functions as func
 from openai import AzureOpenAI
 
-# Werte kommen aus den App-Settings der Static Web App (NIE hart im Code / im Repo).
-ENDPOINT = os.environ.get("FOUNDRY_ENDPOINT")          # z.B. https://<resource>.openai.azure.com/
-API_KEY = os.environ.get("FOUNDRY_KEY")                # Key aus dem Foundry-Deployment
-DEPLOYMENT = os.environ.get("FOUNDRY_DEPLOYMENT")      # Name deines Model-Deployments, z.B. gpt-4o-mini
+
+ENDPOINT = os.environ.get("FOUNDRY_ENDPOINT")         
+API_KEY = os.environ.get("FOUNDRY_KEY")               
+DEPLOYMENT = os.environ.get("FOUNDRY_DEPLOYMENT")      
 API_VERSION = os.environ.get("FOUNDRY_API_VERSION", "2024-10-21")
 
 SYSTEM_PROMPT = os.environ.get(
