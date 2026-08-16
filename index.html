@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Foundry Chat</title>
+  <style>
+    :root {
+      --bg: #0f1420;
+      --surface: #171d2b;
+      --surface-2: #1e2636;
+      --line: #2a3346;
+      --ink: #e7ecf4;
+      --ink-dim: #8b96ab;
+      --accent: #4dd6c1;      /* ruhiges Teal – bewusst kein Acid-Grün */
+      --accent-ink: #06231f;
+      --user-bubble: #24405a;
+      --radius: 14px;
+      --mono: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", monospace;
+      --sans: "Segoe UI", system-ui, -apple-system, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      background: radial-gradient(1100px 550px at 72% -12%, #1c2740 0%, transparent 62%), var(--bg);
+      color: var(--ink);
+      font-family: var(--sans);
+      display: flex; flex-direction: column;
+      min-height: 100dvh;
+    }
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 12px; padding: 14px 20px;
+      border-bottom: 1px solid var(--line);
+      background: var(--surface);
+    }
+    .brand { display: flex; align-items: baseline; gap: 10px; }
+    .brand h1 { font-size: 16px; margin: 0; letter-spacing: .2px; font-weight: 650; }
+    .brand .tag {
+      font-family: var(--mono); font-size: 11px; color: var(--ink-dim);
+      border: 1px solid var(--line); border-radius: 6px; padding: 2px 7px;
+    }
+    .who { display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--ink-dim); }
+    .who a { color: var(--accent); text-decoration: none; }
+    .who a:hover { text-decoration: underline; }
+    .who a:focus-visible, button:focus-visible, textarea:focus-visible {
+      outline: 2px solid var(--accent); outline-offset: 2px;
+    }
+
+    main { flex: 1; display: flex; flex-direction: column; width: min(760px, 100%); margin: 0 auto; padding: 0 16px; }
+
+    /* Login-Zustand */
+    #gate {
+      flex: 1; display: none; flex-direction: column; align-items: center; justify-content: center;
+      text-align: center; gap: 18px; padding: 40px 16px;
+    }
+    #gate p { color: var(--ink-dim); max-width: 34ch; line-height: 1.5; margin: 0; }
+    .btn {
+      display: inline-block; background: var(--accent); color: var(--accent-ink);
+      font-weight: 650; border: none; border-radius: 10px; padding: 11px 20px;
+      font-size: 14px; cursor: pointer; text-decoration: none;
+    }
+    .btn:hover { filter: brightness(1.06); }
+
+    /* Chat-Zustand */
+    #chat { flex: 1; display: none; flex-direction: column; }
+    #log { flex: 1; overflow-y: auto; padding: 22px 4px 8px; display: flex; flex-direction: column; gap: 14px; }
+    .msg { max-width: 82%; padding: 11px 14px; border-radius: var(--radius); line-height: 1.5; font-size: 15px; white-space: pre-wrap; word-wrap: break-word; }
+    .msg.user { align-self: flex-end; background: var(--user-bubble); border-bottom-right-radius: 4px; }
+    .msg.bot  { align-self: flex-start; background: var(--surface-2); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
+    .msg.system { align-self: center; font-family: var(--mono); font-size: 12px; color: var(--ink-dim); background: transparent; }
+    .dots span { animation: blink 1.2s infinite; }
+    .dots span:nth-child(2){ animation-delay: .2s; } .dots span:nth-child(3){ animation-delay: .4s; }
+    @keyframes blink { 0%,60%,100%{ opacity:.25 } 30%{ opacity:1 } }
+    @media (prefers-reduced-motion: reduce){ .dots span { animation: none; } }
+
+    form#composer { display: flex; gap: 10px; padding: 14px 4px 22px; align-items: flex-end; }
+    textarea#input {
+      flex: 1; resize: none; min-height: 46px; max-height: 160px;
+      background: var(--surface); color: var(--ink);
+      border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px;
+      font: inherit; font-size: 15px; line-height: 1.4;
+    }
+    textarea#input::placeholder { color: var(--ink-dim); }
+    #send { background: var(--accent); color: var(--accent-ink); border: none; border-radius: 12px; padding: 0 18px; height: 46px; font-weight: 650; cursor: pointer; }
+    #send:disabled { opacity: .5; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <h1>Foundry Chat</h1>
+      <span class="tag" id="status-tag">verbinde…</span>
+    </div>
+    <div class="who" id="who"></div>
+  </header>
+
+  <main>
+    <!-- Nicht eingeloggt -->
+    <section id="gate">
+      <p>Dieser Bot ist nur für angemeldete Nutzer. Melde dich mit deinem Firmenkonto an, um zu starten.</p>
+      <a class="btn" href="/.auth/login/aad?post_login_redirect_uri=/">Mit Microsoft anmelden</a>
+    </section>
+
+    <!-- Eingeloggt -->
+    <section id="chat">
+      <div id="log"></div>
+      <form id="composer">
+        <textarea id="input" placeholder="Schreib deine Nachricht… (Enter zum Senden)" autocomplete="off"></textarea>
+        <button id="send" type="submit">Senden</button>
+      </form>
+    </section>
+  </main>
+
+  <script>
+    const log = document.getElementById('log');
+    const input = document.getElementById('input');
+    const sendBtn = document.getElementById('send');
+    const statusTag = document.getElementById('status-tag');
+
+    // Gesprächsverlauf – wird bei jedem Aufruf mitgeschickt, damit der Bot Kontext hat
+    const history = [];
+
+    function addMessage(role, text) {
+      const el = document.createElement('div');
+      el.className = 'msg ' + role;
+      el.textContent = text;
+      log.appendChild(el);
+      log.scrollTop = log.scrollHeight;
+      return el;
+    }
+
+    function addTyping() {
+      const el = document.createElement('div');
+      el.className = 'msg bot dots';
+      el.innerHTML = '<span>●</span><span>●</span><span>●</span>';
+      log.appendChild(el);
+      log.scrollTop = log.scrollHeight;
+      return el;
+    }
+
+    async function checkAuth() {
+      try {
+        const res = await fetch('/.auth/me');
+        const data = await res.json();
+        const principal = data.clientPrincipal;
+        if (principal) {
+          document.getElementById('chat').style.display = 'flex';
+          document.getElementById('who').innerHTML =
+            `<span>${principal.userDetails}</span> · <a href="/.auth/logout?post_logout_redirect_uri=/">Abmelden</a>`;
+          statusTag.textContent = 'bereit';
+          input.focus();
+        } else {
+          document.getElementById('gate').style.display = 'flex';
+          statusTag.textContent = 'nicht angemeldet';
+        }
+      } catch (e) {
+        // Läuft man lokal ohne SWA-CLI, gibt es kein /.auth – dann direkt Chat zeigen
+        document.getElementById('chat').style.display = 'flex';
+        statusTag.textContent = 'lokal';
+      }
+    }
+
+    async function send(text) {
+      addMessage('user', text);
+      history.push({ role: 'user', content: text });
+      const typing = addTyping();
+      sendBtn.disabled = true;
+
+      try {
+        const res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ messages: history })
+        });
+        typing.remove();
+        if (!res.ok) {
+          addMessage('system', 'Fehler ' + res.status + ' – bitte später erneut versuchen.');
+          return;
+        }
+        const data = await res.json();
+        addMessage('bot', data.reply);
+        history.push({ role: 'assistant', content: data.reply });
+      } catch (e) {
+        typing.remove();
+        addMessage('system', 'Verbindung fehlgeschlagen.');
+      } finally {
+        sendBtn.disabled = false;
+        input.focus();
+      }
+    }
+
+    document.getElementById('composer').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const text = input.value.trim();
+      if (!text) return;
+      input.value = '';
+      input.style.height = 'auto';
+      send(text);
+    });
+
+    // Enter sendet, Shift+Enter macht Zeilenumbruch
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        document.getElementById('composer').requestSubmit();
+      }
+    });
+    input.addEventListener('input', () => {
+      input.style.height = 'auto';
+      input.style.height = Math.min(input.scrollHeight, 160) + 'px';
+    });
+
+    checkAuth();
+  </script>
+</body>
+</html>
